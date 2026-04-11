@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
+
 """
 CodeAlpha_Task1_NetworkSniffer
 Basic Network Packet Sniffer using Scapy with Multiple Storage Options
-Author: [Your Name]
+Author: Lawal Daniel Adebola (CodeAlpha)
+Description: A simple network packet sniffer that captures and stores network traffic in various formats.
 """
 
 from scapy.all import sniff, IP, TCP, UDP, ICMP, ARP, Raw, wrpcap
