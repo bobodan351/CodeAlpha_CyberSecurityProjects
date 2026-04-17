@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CodeAlpha NIDS Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 30px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 1px solid #4fbdba;
+        }
+        
+        .header h1 {
+            color: #4fbdba;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+        }
+        
+        .card h2 {
+            color: #60a5fa;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #334155;
+            padding-bottom: 10px;
+        }
+        
+        .stat-box {
+            background: #334155;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #fbbf24;
+        }
+        
+        .stat-label {
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+        
+        .alert-box {
+            background: #1e293b;
+            border-left: 4px solid #e94560;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 0 8px 8px 0;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .alert-time {
+            color: #94a3b8;
+            font-size: 0.85em;
+        }
+        
+        .alert-sig {
+            color: #e2e8f0;
+            font-weight: 600;
+            margin: 5px 0;
+        }
+        
+        .alert-ip {
+            color: #64748b;
+            font-size: 0.9em;
+        }
+        
+        .refresh-btn {
+            background: #4fbdba;
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn:hover {
+            background: #5fcfcf;
+        }
+        
+        .error-msg {
+            color: #ef4444;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading {
+            color: #94a3b8;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #alertFeed {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>CodeAlpha NIDS Dashboard</h1>
+        <p><span class="status"></span>Real-time Network Intrusion Detection</p>
+        <p style="margin-top: 10px; color: #94a3b8;">Suricata + Python Monitor</p>
+    </div>
+    
+    <div class="grid">
+        <!-- Stats Card -->
+        <div class="card">
+            <h2>Statistics</h2>
+            <div class="stat-box">
+                <div class="stat-number" id="totalAlerts">0</div>
+                <div class="stat-label">Total Alerts</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="blockedIPs">0</div>
+                <div class="stat-label">Blocked IPs</div>
+            </div>
+        </div>
+        
+        <!-- Rules Card -->
+        <div class="card">
+            <h2>Active Rules</h2>
+            <ul style="list-style: none; line-height: 2;">
+                <li>Ping detection (ICMP)</li>
+                <li>SSH monitoring</li>
+                <li>HTTP traffic</li>
+                <li>Port scan detection</li>
+                <li>SQL Injection</li>
+                <li>XSS detection</li>
+                <li>Directory traversal</li>
+                <li>Brute force detection</li>
+                <li>Suspicious user agents</li>
+                <li>Data exfiltration</li>
+            </ul>
+        </div>
+        
+        <!-- Live Alerts Card -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h2>Live Alert Feed</h2>
+            <button class="refresh-btn" onclick="loadAlerts()">Refresh Now</button>
+            <div id="alertFeed">
+                <p class="loading">Click refresh to load alerts...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let alertCount = 0;
+        
+        async function loadAlerts() {
+            const feed = document.getElementById('alertFeed');
+            feed.innerHTML = '<p class="loading">Loading alerts...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:5000/alerts');
+                
+                if (!response.ok) {
+                    throw new Error('Server not responding');
+                }
+                
+                const alerts = await response.json();
+                
+                if (alerts.length === 0) {
+                    feed.innerHTML = '<p class="loading">No alerts yet. Generate some traffic!</p>';
+                    return;
+                }
+                
+                feed.innerHTML = '';
+                alertCount = alerts.length;
+                
+                alerts.reverse().forEach(alert => {
+                    const div = document.createElement('div');
+                    div.className = 'alert-box';
+                    
+                    // Format time
+                    const time = alert.time ? new Date(alert.time).toLocaleTimeString() : 'Unknown';
+                    
+                    div.innerHTML = `
+                        <div class="alert-time">${time}</div>
+                        <div class="alert-sig">${alert.signature}</div>
+                        <div class="alert-ip">${alert.src_ip} -> ${alert.dest_ip}</div>
+                    `;
+                    feed.appendChild(div);
+                });
+                
+                document.getElementById('totalAlerts').textContent = alertCount;
+                
+            } catch (error) {
+                feed.innerHTML = `
+                    <p class="error-msg">
+                        Error: Cannot connect to server<br>
+                        Make sure you ran: sudo python3 server.py<br>
+                        <br>
+                        Technical details: ${error.message}
+                    </p>
+                `;
+            }
+        }
+        
+        // Auto-refresh every 5 seconds
+        setInterval(loadAlerts, 5000);
+        
+        // Load on page open
+        loadAlerts();
+    </script>
+</body>
+</html>
